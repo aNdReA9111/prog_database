@@ -4,21 +4,29 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
 
+from router import product
+
 app = FastAPI()
 
-# Add CORS middleware
+# Configurazione CORS aggiornata
+origins = [
+    "http://15.204.245.166:5173",    # Frontend IP
+    "http://15.204.245.166:8002",    # Backend IP
+    "http://localhost:5173",
+    "http://localhost:8002",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Create API router
-api_router = APIRouter()
-# Mount API router with /api prefix
-app.include_router(api_router, prefix="/api")
+app.include_router(product.router)
 
 frontend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../frontend/dist"))
 
