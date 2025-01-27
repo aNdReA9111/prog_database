@@ -8,6 +8,7 @@ import os
 from router import product
 from router import shop
 from router import magazzini
+from router import controparte
 
 app = FastAPI()
 
@@ -32,6 +33,7 @@ app.add_middleware(
 app.include_router(product.router)
 app.include_router(shop.router)
 app.include_router(magazzini.router)
+app.include_router(controparte.router)
 
 frontend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../frontend/dist"))
 

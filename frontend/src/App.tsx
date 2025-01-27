@@ -6,6 +6,7 @@ import ShopDetails from './pages/ShopDetails';
 import Magazzini from './pages/Magazzini';
 import MagazzinoDetail from './pages/MagazzinoDetails';
 import Products from './pages/Products';
+import Controparte from './pages/Controparte';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
             <Nav.Link href="/shop">Negozi</Nav.Link>
             <Nav.Link href="/magazzino">Magazzini</Nav.Link>
             <Nav.Link href="/products">Prodotti</Nav.Link>
+            <Nav.Link href="/controparti">Controparti</Nav.Link>
           </Nav>
         </Container>
       </Navbar>
@@ -31,6 +33,7 @@ function App() {
           <Route path="/magazzino" element={<Magazzini />} />
           <Route path="/magazzino/:codice" element={<MagazzinoDetail />} />
           <Route path="/products" element={<Products />} />
+          <Route path="/controparti" element={<Controparte />} />
         </Routes>
       </Container>
     </BrowserRouter>
