@@ -49,12 +49,20 @@ const Shop: React.FC = () => {
               <Card.Body>
                 <Card.Title>{shop.denominazione}</Card.Title>
                 <Card.Text>{shop.indirizzo_sede}</Card.Text>
-                <Button
-                  variant="primary"
-                  href={`http://15.204.245.166:5173/shop/${shop.codice}`}
-                >
-                  Visita Negozio
-                </Button>
+                <div className="d-flex gap-2">
+                  <Button
+                    variant="primary"
+                    href={`http://15.204.245.166:5173/shop/${shop.codice}`}
+                  >
+                    Dettagli Negozio
+                  </Button>
+                  <Button
+                    variant="success"
+                    href={`http://15.204.245.166:5173/shop/${shop.codice}/products`}
+                  >
+                    Visita Negozio
+                  </Button>
+                </div>
               </Card.Body>
             </Card>
           </Col>

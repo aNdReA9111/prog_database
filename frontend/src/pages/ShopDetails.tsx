@@ -133,6 +133,14 @@ const ShopDetails: React.FC = () => {
               <td>{client.Cognome}</td>
               <td>{client.Email}</td>
               <td>{client.Telefono}</td>
+              <td>
+                <Button 
+                  variant="primary"
+                  href={`/shop/${id}/client/${client.Codice}/orders`}
+                >
+                  Visualizza Ordini
+                </Button>
+              </td>
             </tr>
           ))}
         </tbody>

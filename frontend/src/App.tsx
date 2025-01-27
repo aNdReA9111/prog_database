@@ -7,6 +7,9 @@ import Magazzini from './pages/Magazzini';
 import MagazzinoDetail from './pages/MagazzinoDetails';
 import Products from './pages/Products';
 import Controparte from './pages/Controparte';
+import OrdiniVenditaCliente from './pages/OrdiniVenditaCliente';
+import ShopProducts from './pages/ShopProducts';
+import Ordini from './pages/Ordini';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 function App() {
@@ -21,6 +24,8 @@ function App() {
             <Nav.Link href="/magazzino">Magazzini</Nav.Link>
             <Nav.Link href="/products">Prodotti</Nav.Link>
             <Nav.Link href="/controparti">Controparti</Nav.Link>
+
+            <Nav.Link href="/ordini">Analisi Ordini</Nav.Link>
           </Nav>
         </Container>
       </Navbar>
@@ -28,12 +33,20 @@ function App() {
       <Container className="mt-4">
         <Routes>
           <Route path="/" element={<Home />} />
+
           <Route path="/shop" element={<Shop />} />
+          <Route path="/shop/:shopId/products" element={<ShopProducts />} />
           <Route path="/shop/:id" element={<ShopDetails />} /> 
+          <Route path="/shop/:shopId/client/:clientId/orders" element={<OrdiniVenditaCliente />} />
+
           <Route path="/magazzino" element={<Magazzini />} />
           <Route path="/magazzino/:codice" element={<MagazzinoDetail />} />
+
           <Route path="/products" element={<Products />} />
           <Route path="/controparti" element={<Controparte />} />
+          <Route path="/ordini" element={<Ordini />} />
+
+
         </Routes>
       </Container>
     </BrowserRouter>

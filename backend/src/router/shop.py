@@ -126,3 +126,57 @@ async def get_shop_clients(shop_id: int, conn=Depends(get_db_connection)):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+@router.get("/{shop_id}/clients/{client_id}/orders")
+async def get_client_orders(shop_id: int, client_id: int, conn=Depends(get_db_connection)):
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT o.Codice, o.Data, p.Nome, p.Prezzo, cp.Quantità
+            FROM Ordine o
+            JOIN Vendita v ON o.Codice = v.Codice
+            JOIN Composizione cp ON o.Codice = cp.Ordine
+            JOIN Prodotto p ON cp.Prodotto = p.Codice
+            WHERE o.Negozio = ? AND v.Cliente = ?
+        """, (shop_id, client_id))
+        
+        orders = cursor.fetchall()
+        return [{
+            "Codice": order[0],
+            "Data": order[1],
+            "NomeProdotto": order[2],
+            "Prezzo": order[3],
+            "Quantita": order[4]  # Manteniamo "Quantita" nel JSON per compatibilità frontend
+        } for order in orders]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+        
+        
+@router.get("/{shop_id}/products")
+async def get_shop_products(shop_id: int, conn=Depends(get_db_connection)):
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT DISTINCT p.Codice, p.Nome, p.Prezzo, m.Codice, m.Indirizzo, mag.Quantita
+            FROM Prodotto p
+            JOIN Stoccaggio mag ON p.Codice = mag.Prodotto
+            JOIN Magazzino m ON mag.Magazzino = m.Codice
+            JOIN Rifornimento r ON m.Codice = r.Magazzino
+            WHERE r.Negozio = ?
+        """, (shop_id,))
+        
+        products = cursor.fetchall()
+        return [{
+            "Codice": prod[0],
+            "Nome": prod[1],
+            "Prezzo": prod[2],
+            "MagazzinoCodice": prod[3],
+            "MagazzinoIndirizzo": prod[4],
+            "Quantita": prod[5]
+        } for prod in products]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
