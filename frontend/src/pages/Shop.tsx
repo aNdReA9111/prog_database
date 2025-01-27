@@ -1,29 +1,67 @@
-import { Card, Row, Col } from 'react-bootstrap';
+import React, { useEffect, useState } from "react";
+import { Card, Button, Container, Row, Col } from "react-bootstrap";
 
-function Shop() {
-  const shops = [
-    { id: 1, name: "Negozio 1", location: "Milano" },
-    { id: 2, name: "Negozio 2", location: "Roma" },
-    { id: 3, name: "Negozio 3", location: "Napoli" }
-  ];
+interface Shop {
+  codice: number;
+  indirizzo_sede: string;
+  denominazione: string;
+}
+
+const Shop: React.FC = () => {
+  const [shops, setShops] = useState<Shop[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchShops = async () => {
+      try {
+        const response = await fetch("http://15.204.245.166:8002/api/shops/");
+        if (!response.ok) {
+          throw new Error(`${response.status} - ${response.statusText}`);
+        }
+        const data: Shop[] = await response.json();
+        setShops(data);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchShops();
+  }, []);
+
+  if (loading) {
+    return <p>Caricamento in corso...</p>;
+  }
+
+  if (error) {
+    return <p>Errore: {error}</p>;
+  }
 
   return (
-    <>
-      <h2>I Nostri Negozi</h2>
-      <Row xs={1} md={3} className="g-4">
-        {shops.map(shop => (
-          <Col key={shop.id}>
+    <Container>
+      <h1 className="my-4">Negozi Disponibili</h1>
+      <Row>
+        {shops.map((shop) => (
+          <Col md={4} key={shop.codice} className="mb-4">
             <Card>
               <Card.Body>
-                <Card.Title>{shop.name}</Card.Title>
-                <Card.Text>Località: {shop.location}</Card.Text>
+                <Card.Title>{shop.denominazione}</Card.Title>
+                <Card.Text>{shop.indirizzo_sede}</Card.Text>
+                <Button
+                  variant="primary"
+                  href={`http://15.204.245.166:5173/shop/${shop.codice}`}
+                >
+                  Visita Negozio
+                </Button>
               </Card.Body>
             </Card>
           </Col>
         ))}
       </Row>
-    </>
+    </Container>
   );
-}
+};
 
 export default Shop;

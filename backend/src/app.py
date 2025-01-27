@@ -1,10 +1,13 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
 
+# Import routers
 from router import product
+from router import shop
+from router import magazzini
 
 app = FastAPI()
 
@@ -20,13 +23,15 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "OPTIONS", "DELETE", "PUT"],
     allow_headers=["*"],
     expose_headers=["*"]
 )
 
 # Create API router
 app.include_router(product.router)
+app.include_router(shop.router)
+app.include_router(magazzini.router)
 
 frontend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../frontend/dist"))
 
