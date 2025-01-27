@@ -95,3 +95,34 @@ async def delete_employee(employee_id: int, conn=Depends(get_db_connection)):
     cursor.execute("DELETE FROM Dipendente WHERE Numero = ?;", (employee_id,))
     conn.commit()
     return {"message": "Dipendente eliminato con successo"}
+
+
+@router.get("/{shop_id}/clients")
+async def get_shop_clients(shop_id: int, conn=Depends(get_db_connection)):
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT DISTINCT c.Codice, cp.Nome, c.Cognome, c.IndirizzoMail, cp.NumeroDiTelefono
+            FROM Cliente c
+            JOIN Controparte cp ON c.Codice = cp.Codice
+            JOIN Vendita v ON c.Codice = v.Cliente
+            JOIN Ordine o ON v.Codice = o.Codice
+            WHERE o.Negozio = ?
+        """, (shop_id,))
+        
+        clients = cursor.fetchall()
+        
+        if not clients:
+            return []
+            
+        return [{
+            "Codice": client[0],
+            "Nome": client[1],
+            "Cognome": client[2],
+            "Email": client[3],
+            "Telefono": client[4]
+        } for client in clients]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()

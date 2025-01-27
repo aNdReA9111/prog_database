@@ -16,10 +16,20 @@ type Shop = {
   Denominazione: string;
 };
 
+type Client = {
+  Codice: number;
+  Nome: string;
+  Cognome: string;
+  Email: string;
+  Telefono: string;
+};
+
 const ShopDetails: React.FC = () => {
   const { id } = useParams();
   const [shop, setShop] = useState<Shop | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+
   const [showModal, setShowModal] = useState(false);
   const [newEmployee, setNewEmployee] = useState({
     Cognome: '',
@@ -37,6 +47,10 @@ const ShopDetails: React.FC = () => {
     fetch(`http://15.204.245.166:8002/api/shops/${id}/employees`)
       .then((response) => response.json())
       .then((data) => setEmployees(data));
+    // Fetch clients
+    fetch(`http://15.204.245.166:8002/api/shops/${id}/clients`)
+      .then(response => response.json())
+      .then(data => setClients(data));
   }, [id]);
 
   const handleDelete = (employeeId: number) => {
@@ -99,7 +113,31 @@ const ShopDetails: React.FC = () => {
           ))}
         </tbody>
       </Table>
+      
       <Button onClick={() => setShowModal(true)}>Aggiungi Dipendente</Button>
+
+      <h2 className="mt-4">Clienti del Negozio</h2>
+      <Table striped bordered hover>
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>Cognome</th>
+            <th>Email</th>
+            <th>Telefono</th>
+          </tr>
+        </thead>
+        <tbody>
+          {clients.map((client) => (
+            <tr key={client.Codice}>
+              <td>{client.Nome}</td>
+              <td>{client.Cognome}</td>
+              <td>{client.Email}</td>
+              <td>{client.Telefono}</td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+
 
       <Modal show={showModal} onHide={() => setShowModal(false)}>
         <Modal.Header closeButton>
