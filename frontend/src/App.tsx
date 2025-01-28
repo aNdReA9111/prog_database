@@ -12,6 +12,8 @@ import ShopProducts from './pages/ShopProducts';
 import Ordini from './pages/Ordini';
 import OrdiniDipendente from './pages/OrdiniDipendente';
 import SimulazioneOrdiniAcquisto from './pages/SimulazioneOrdiniAcquisto';
+import SimulazioneOrdineVendita from './pages/SimulazioneOrdineVendita';
+
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 function App() {
@@ -28,7 +30,8 @@ function App() {
             <Nav.Link href="/controparti">Controparti</Nav.Link>
 
             <Nav.Link href="/ordini">Analisi Ordini</Nav.Link>
-            <Nav.Link href="/simulazioneOrdini">Simulazione Ordini Acquisto</Nav.Link>
+            <Nav.Link href="/simulazioneOrdiniAcq">Simulazione Ordini Acquisto</Nav.Link>
+            <Nav.Link href="/simulazioneOrdiniVen">Simulazione Ordini Vendita</Nav.Link>
           </Nav>
         </Container>
       </Navbar>
@@ -49,7 +52,8 @@ function App() {
           <Route path="/products" element={<Products />} />
           <Route path="/controparti" element={<Controparte />} />
           <Route path="/ordini" element={<Ordini />} />
-          <Route path="/simulazioneOrdini" element={<SimulazioneOrdiniAcquisto />} />
+          <Route path="/simulazioneOrdiniAcq" element={<SimulazioneOrdiniAcquisto />} />
+          <Route path="/simulazioneOrdiniVen" element={<SimulazioneOrdineVendita />} />
 
 
         </Routes>

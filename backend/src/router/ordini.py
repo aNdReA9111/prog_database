@@ -233,3 +233,147 @@ async def create_purchase_order(order: PurchaseOrder, conn=Depends(get_db_connec
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+@router.get("/shops/{shop_id}/available-products")
+async def get_shop_available_products(shop_id: int, conn=Depends(get_db_connection)):
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            WITH MagazziniNegozio AS (
+                SELECT DISTINCT m.Codice 
+                FROM Magazzino m
+                JOIN Rifornimento r ON m.Codice = r.Magazzino
+                WHERE r.Negozio = ?
+            )
+            SELECT 
+                p.Codice,
+                p.Nome,
+                p.Descrizione,
+                p.Prezzo,
+                SUM(s.Quantita) as QuantitàTotale,
+                GROUP_CONCAT(s.Magazzino || ':' || s.Quantita) as DistribuzioneMagazzini
+            FROM Prodotto p
+            JOIN Stoccaggio s ON p.Codice = s.Prodotto
+            WHERE s.Magazzino IN (SELECT Codice FROM MagazziniNegozio)
+            GROUP BY p.Codice
+            HAVING QuantitàTotale > 0
+        """, (shop_id,))
+        return [dict(zip(['Codice', 'Nome', 'Descrizione', 'Prezzo', 'QuantitaDisponibile', 'DistribuzioneMagazzini'], row)) 
+                for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+@router.get("/clients")
+async def get_clients(conn=Depends(get_db_connection)):
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT c.Codice, cp.Nome, c.Cognome, cp.Indirizzo, c.IndirizzoMail
+            FROM Cliente c
+            JOIN Controparte cp ON c.Codice = cp.Codice
+        """)
+        return [dict(zip(['Codice', 'Nome', 'Cognome', 'Indirizzo', 'Email'], row)) 
+                for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class ProductSale(BaseModel):
+    Codice: int
+    Quantita: int
+    DistribuzioneMagazzini: str
+
+class SaleOrder(BaseModel):
+    shop_id: int
+    client_id: int
+    products: List[ProductSale]
+    employee_id: int
+
+@router.post("/sale")
+async def create_sale_order(order: SaleOrder, conn=Depends(get_db_connection)):
+    cursor = conn.cursor()
+    try:
+        logger.info(f"Creazione vendita per cliente {order.client_id} in negozio {order.shop_id}")
+        cursor.execute("BEGIN TRANSACTION")
+
+        # Crea ordine
+        cursor.execute(
+            "INSERT INTO Ordine (Data, Negozio) VALUES (date('now'), ?)",
+            (order.shop_id,)
+        )
+        order_id = cursor.lastrowid
+        logger.info(f"Ordine creato con ID: {order_id}")
+
+        # Crea vendita con tutti i campi richiesti
+        cursor.execute("""
+            INSERT INTO Vendita (Codice, Cliente, Responsabile)
+            VALUES (?, ?, ?)
+        """, (order_id, order.client_id, order.employee_id))
+        logger.info(f"Vendita creata per ordine {order_id}")
+
+        # Gestisci prodotti
+        for product in order.products:
+            logger.info(f"Processando prodotto {product.Codice}, quantità {product.Quantita}")
+            cursor.execute("""
+                INSERT INTO Composizione (Ordine, Prodotto, Quantità)
+                VALUES (?, ?, ?)
+            """, (order_id, product.Codice, product.Quantita))
+
+            # Aggiorna magazzini
+            magazzini = dict(m.split(':') for m in product.DistribuzioneMagazzini.split(','))
+            quantita_rimanente = product.Quantita
+
+            for magazzino_id, quantita_disponibile in magazzini.items():
+                quantita_da_rimuovere = min(int(quantita_disponibile), quantita_rimanente)
+                
+                cursor.execute("""
+                    UPDATE Stoccaggio
+                    SET Quantita = Quantita - ?
+                    WHERE Magazzino = ? AND Prodotto = ?
+                """, (quantita_da_rimuovere, magazzino_id, product.Codice))
+                
+                logger.info(f"Rimosso {quantita_da_rimuovere} dal magazzino {magazzino_id}")
+                quantita_rimanente -= quantita_da_rimuovere
+                if quantita_rimanente == 0:
+                    break
+
+        conn.commit()
+        logger.info("Transazione completata con successo")
+        return {"message": "Vendita creata con successo", "order_id": order_id}
+    except Exception as e:
+        logger.error(f"Errore durante la creazione della vendita: {str(e)}")
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+        
+@router.get("/shops")
+async def get_shops(conn=Depends(get_db_connection)):
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT Codice, Denominazione, IndirizzoSede
+            FROM Negozio
+        """)
+        return [dict(zip(['Codice', 'Denominazione', 'Indirizzo'], row)) 
+                for row in cursor.fetchall()]
+    finally:
+        conn.close()
+        
+@router.get("/shops/{shop_id}/employees")
+async def get_shop_employees(shop_id: int, conn=Depends(get_db_connection)):
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT Numero, Nome, Cognome, PosizioneLavorativa
+            FROM Dipendente
+            WHERE Negozio = ?
+        """, (shop_id,))
+        return [dict(zip(['Numero', 'Nome', 'Cognome', 'Posizione'], row)) 
+                for row in cursor.fetchall()]
+    finally:
+        conn.close()
