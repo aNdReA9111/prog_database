@@ -215,3 +215,153 @@ async def get_employee_orders(shop_id: int, employee_id: int, conn=Depends(get_d
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+        
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+@router.post("/{shop_id}/orders/{order_id}/invoice")
+async def generate_invoice(shop_id: int, order_id: int, conn=Depends(get_db_connection)):
+    cursor = conn.cursor()
+    logger.info(f"Generazione fattura per ordine {order_id} del negozio {shop_id}")
+    try:
+        cursor.execute("SELECT Fattura FROM Vendita WHERE Codice = ?", (order_id,))
+        if cursor.fetchone()[0] is not None:
+            logger.warning(f"Tentativo di generare fattura già esistente per ordine {order_id}")
+            raise HTTPException(status_code=400, detail="Fattura già esistente")
+
+        cursor.execute("""
+            SELECT SUM(p.Prezzo * cp.Quantità)
+            FROM Composizione cp
+            JOIN Prodotto p ON cp.Prodotto = p.Codice
+            WHERE cp.Ordine = ?
+        """, (order_id,))
+        totale = cursor.fetchone()[0]
+        logger.info(f"Calcolato totale fattura: {totale}")
+
+        cursor.execute("""
+            INSERT INTO Fattura (Importo, Iva, MetodoPagamento, DataEmissione, Vendita)
+            VALUES (?, 22, 'Carta', date('now'), ?)
+        """, (totale, order_id))
+        fattura_id = cursor.lastrowid
+        logger.info(f"Creata fattura ID: {fattura_id}")
+
+        cursor.execute("""
+            UPDATE Vendita SET Fattura = ? WHERE Codice = ?
+        """, (fattura_id, order_id))
+        logger.info(f"Aggiornata vendita {order_id} con fattura {fattura_id}")
+
+        conn.commit()
+        return {"invoice_id": fattura_id, "total": totale}
+    except Exception as e:
+        logger.error(f"Errore durante la generazione fattura: {str(e)}")
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{shop_id}/orders/{order_id}/return")
+async def create_return(shop_id: int, order_id: int, return_data: dict, conn=Depends(get_db_connection)):
+    cursor = conn.cursor()
+    logger.info(f"Creazione reso per ordine {order_id}")
+    try:
+        cursor.execute("""
+            INSERT INTO Reso (Motivazione, Stato, Modalità)
+            VALUES (?, 'Approvato', 'Rimborso')
+        """, (return_data["motivazione"],))
+        reso_id = cursor.lastrowid
+        logger.info(f"Creato reso ID: {reso_id}")
+        
+        # Aggiorna la fattura con il riferimento al reso
+        cursor.execute("""
+            UPDATE Fattura 
+            SET Reso = ? 
+            WHERE Numero = (
+                SELECT Fattura 
+                FROM Vendita 
+                WHERE Codice = ?
+            )
+        """, (reso_id, order_id))
+
+        cursor.execute("""
+            SELECT m.Codice 
+            FROM Magazzino m
+            JOIN Rifornimento r ON m.Codice = r.Magazzino
+            WHERE r.Negozio = ?
+            LIMIT 1
+        """, (shop_id,))
+        magazzino_id = cursor.fetchone()[0]
+        logger.info(f"Selezionato magazzino {magazzino_id} per il reso")
+
+        cursor.execute("""
+            SELECT cp.Prodotto, cp.Quantità
+            FROM Composizione cp
+            WHERE cp.Ordine = ?
+        """, (order_id,))
+        
+        for prodotto, quantita in cursor.fetchall():
+            logger.info(f"Aggiornamento stoccaggio: Prodotto {prodotto}, Quantità {quantita}")
+            cursor.execute("""
+                INSERT INTO Stoccaggio (Magazzino, Prodotto, Quantita)
+                VALUES (?, ?, ?)
+                ON CONFLICT(Magazzino, Prodotto) DO UPDATE SET
+                Quantita = Quantita + ?
+            """, (magazzino_id, prodotto, quantita, quantita))
+
+        conn.commit()
+        logger.info(f"Reso completato con successo")
+        return {"return_id": reso_id}
+    except Exception as e:
+        logger.error(f"Errore durante la creazione del reso: {str(e)}")
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{shop_id}/orders/{order_id}/invoice")
+async def get_invoice(shop_id: int, order_id: int, conn=Depends(get_db_connection)):
+    cursor = conn.cursor()
+    logger.info(f"Richiesta fattura per ordine {order_id}")
+    try:
+        cursor.execute("""
+            SELECT f.Numero, f.Importo, f.Iva, f.DataEmissione,
+                   cp.Nome, c.Cognome, cp.Indirizzo
+            FROM Fattura f
+            JOIN Vendita v ON f.Vendita = v.Codice
+            JOIN Cliente c ON v.Cliente = c.Codice
+            JOIN Controparte cp ON c.Codice = cp.Codice
+            WHERE v.Codice = ?
+        """, (order_id,))
+        result = cursor.fetchone()
+        if not result:
+            logger.warning(f"Nessuna fattura trovata per ordine {order_id}")
+            raise HTTPException(status_code=404, detail="Fattura non trovata")
+        logger.info(f"Fattura recuperata con successo")
+        return dict(zip(
+            ['Numero', 'Importo', 'Iva', 'Data', 'NomeCliente', 'CognomeCliente', 'Indirizzo'],
+            result
+        ))
+    except Exception as e:
+        logger.error(f"Errore durante il recupero della fattura: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/{shop_id}/orders/{order_id}/status")
+async def get_order_status(shop_id: int, order_id: int, conn=Depends(get_db_connection)):
+    logger.info(f"Verifica stato ordine {order_id}")
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT 
+                CASE WHEN f.Numero IS NOT NULL THEN 1 ELSE 0 END as has_invoice,
+                CASE WHEN f.Reso IS NOT NULL THEN 1 ELSE 0 END as has_return
+            FROM Vendita v
+            LEFT JOIN Fattura f ON v.Fattura = f.Numero
+            WHERE v.Codice = ?
+        """, (order_id,))
+        result = cursor.fetchone()
+        if result is None:
+            raise HTTPException(status_code=404, detail="Ordine non trovato")
+        return {
+            "hasInvoice": bool(result[0]),
+            "hasReturn": bool(result[1])
+        }
+    except Exception as e:
+        logger.error(f"Errore verifica stato: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
