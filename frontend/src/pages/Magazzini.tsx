@@ -1,35 +1,54 @@
 import { useEffect, useState } from "react";
-import { Card, Button, Row, Col } from "react-bootstrap";
+import { Card, Button, Row, Col, Modal, Form } from "react-bootstrap";
+
+interface Shop {
+    id: number;
+    nome: string;
+}
 
 const Magazzini = () => {
-  const [magazzini, setMagazzini] = useState<any[]>([]);
+    const [magazzini, setMagazzini] = useState<any[]>([]);
+    const [shops, setShops] = useState<Shop[]>([]);
+    const [showModal, setShowModal] = useState(false);
+    const [newMagazzino, setNewMagazzino] = useState({
+        indirizzo: '',
+        negozi: [] as number[]
+    });
 
-useEffect(() => {
-    fetch("http://15.204.245.166:8002/api/magazzini/", {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        }
-    })
-    .then(response => response.json())
-    .then(data => setMagazzini(data))
-    .catch(error => console.error(error));
-}, []);
-
-const addMagazzino = () => {
-    const indirizzo = prompt("Inserisci l'indirizzo del nuovo magazzino:");
-    if (indirizzo) {
-        fetch("http://15.204.245.166:8002/api/magazzini/add", {
-            method: 'POST',
+    useEffect(() => {
+        fetch("http://15.204.245.166:8002/api/magazzini/", {
+            method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ indirizzo })
+            }
         })
-        .then(() => window.location.reload())
+        .then(response => response.json())
+        .then(data => setMagazzini(data))
         .catch(error => console.error(error));
-    }
-};
+
+        // Carica lista negozi
+        fetch("http://15.204.245.166:8002/api/magazzini/shops")
+            .then(res => res.json())
+            .then(data => setShops(data));
+    }, []);
+
+
+    const handleSubmit = async () => {
+        try {
+            const response = await fetch("http://15.204.245.166:8002/api/magazzini/add", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newMagazzino)
+            });
+
+            if (response.ok) {
+                setShowModal(false);
+                window.location.reload();
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
 
 const deleteMagazzino = async (codice: number) => {
   if (window.confirm('Sei sicuro di voler eliminare questo magazzino?')) {
@@ -53,7 +72,8 @@ const deleteMagazzino = async (codice: number) => {
   return (
     <div>
       <h1>Magazzini</h1>
-      <Button onClick={addMagazzino}>Aggiungi Magazzino</Button>
+        <Button onClick={() => setShowModal(true)}>Aggiungi Magazzino</Button>
+
       <Row className="mt-4">
           {magazzini.map((magazzino) => (
               <Col key={magazzino.codice} sm={12} md={6} lg={4}>
@@ -79,6 +99,51 @@ const deleteMagazzino = async (codice: number) => {
               </Col>
           ))}
       </Row>
+
+      <Modal show={showModal} onHide={() => setShowModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Nuovo Magazzino</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Indirizzo</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={newMagazzino.indirizzo}
+                                onChange={(e) => setNewMagazzino({
+                                    ...newMagazzino,
+                                    indirizzo: e.target.value
+                                })}
+                            />
+                        </Form.Group>
+                        <Form.Group>
+                            <Form.Label>Negozi</Form.Label>
+                            {shops.map(shop => (
+                                <Form.Check
+                                    key={shop.id}
+                                    type="checkbox"
+                                    label={shop.nome}
+                                    onChange={(e) => {
+                                        const negozi = e.target.checked
+                                            ? [...newMagazzino.negozi, shop.id]
+                                            : newMagazzino.negozi.filter(id => id !== shop.id);
+                                        setNewMagazzino({ ...newMagazzino, negozi });
+                                    }}
+                                />
+                            ))}
+                        </Form.Group>
+                    </Form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowModal(false)}>
+                        Annulla
+                    </Button>
+                    <Button variant="primary" onClick={handleSubmit}>
+                        Salva
+                    </Button>
+                </Modal.Footer>
+            </Modal>
   </div>
   );
 };

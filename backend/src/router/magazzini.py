@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+from typing import List
 from db import get_db_connection
 
 router = APIRouter(
@@ -41,20 +42,43 @@ async def get_magazzini(conn=Depends(get_db_connection)):
     finally:
         conn.close()
 
+class MagazzinoCreate(BaseModel):
+    indirizzo: str
+    negozi: List[int]
+
 @router.post("/add")
-async def add_magazzino(magazzino: Magazzino, conn=Depends(get_db_connection)):
+async def add_magazzino(magazzino: MagazzinoCreate, conn=Depends(get_db_connection)):
     cursor = conn.cursor()
     try:
+        # Inserisce il magazzino
         cursor.execute(
-            "INSERT INTO Magazzino (Indirizzo) VALUES (?)", (magazzino.indirizzo,)
+            "INSERT INTO Magazzino (Indirizzo) VALUES (?)", 
+            (magazzino.indirizzo,)
         )
+        magazzino_id = cursor.lastrowid
+
+        # Crea le relazioni con i negozi
+        for negozio_id in magazzino.negozi:
+            cursor.execute(
+                "INSERT INTO Rifornimento (Magazzino, Negozio) VALUES (?, ?)",
+                (magazzino_id, negozio_id)
+            )
+
         conn.commit()
-        return {"message": "Magazzino aggiunto con successo"}
+        return {"message": "Magazzino aggiunto con successo", "id": magazzino_id}
     except Exception as e:
         conn.rollback()
-        raise HTTPException(status_code=500, detail=f"Errore interno: {str(e)}")
-    finally:
-        conn.close()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/shops")
+async def get_shops(conn=Depends(get_db_connection)):
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT Codice, Denominazione FROM Negozio")
+        shops = cursor.fetchall()
+        return [{"id": s[0], "nome": s[1]} for s in shops]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{codice}")
 async def get_magazzino_detail(codice: int, conn=Depends(get_db_connection)):
