@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Table, Container, Accordion, Button, Modal } from 'react-bootstrap';
+import { Table, Container, Accordion, Button, Modal, Alert } from 'react-bootstrap';
 
 interface Invoice {
   Numero: number;
@@ -33,31 +33,42 @@ interface OrderStatus {
 
 const OrdiniVenditaCliente: React.FC = () => {
   const { shopId, clientId } = useParams();
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [groupedOrders, setGroupedOrders] = useState<GroupedOrders>({});
-  const [orderStatuses, setOrderStatuses] = useState<{[key: string]: OrderStatus}>({});
+  const [orderStatuses, setOrderStatuses] = useState<{ [key: string]: OrderStatus }>({});
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  
+
+  useEffect(() => {
+    if (error || success) {
+      const timer = setTimeout(() => {
+        setError(null);
+        setSuccess(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, success]);
 
   useEffect(() => {
     const fetchOrderStatuses = async () => {
-        for (const orderId of Object.keys(groupedOrders)) {
-            try {
-                const response = await fetch(
-                    `http://15.204.245.166:8002/api/shops/${shopId}/orders/${orderId}/status`
-                );
-                const status = await response.json();
-                setOrderStatuses(prev => ({
-                    ...prev,
-                    [orderId]: status
-                }));
-            } catch (error) {
-                console.error(`Errore stato ordine ${orderId}:`, error);
-            }
+      for (const orderId of Object.keys(groupedOrders)) {
+        try {
+          const response = await fetch(
+            `http://15.204.245.166:8002/api/shops/${shopId}/orders/${orderId}/status`
+          );
+          const status = await response.json();
+          setOrderStatuses(prev => ({
+            ...prev,
+            [orderId]: status
+          }));
+        } catch (error) {
+          console.error(`Errore stato ordine ${orderId}:`, error);
         }
+      }
     };
     fetchOrderStatuses();
-}, [groupedOrders, shopId]);
+  }, [groupedOrders, shopId]);
 
   const handleGenerateInvoice = async (orderId: number) => {
     try {
@@ -98,18 +109,31 @@ const OrdiniVenditaCliente: React.FC = () => {
         `http://15.204.245.166:8002/api/shops/${shopId}/orders/${orderId}/return`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify({ motivazione })
         }
       );
-      if (response.ok) {
-        setOrderStatuses(prev => ({
-          ...prev,
-          [orderId]: { ...prev[orderId], hasReturn: true }
-        }));
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 400) {
+          setError(data.detail.message || 'È necessario generare una fattura prima di richiedere il reso');
+          return;
+        }
+        throw new Error(data.detail?.message || 'Errore sconosciuto');
       }
-    } catch (error) {
-      console.error('Errore:', error);
+
+      setOrderStatuses(prev => ({
+        ...prev,
+        [orderId]: { ...prev[orderId], hasReturn: true }
+      }));
+      setSuccess('Reso richiesto con successo');
+    } catch (err) {
+      console.error('Errore:', err);
+      setError(err instanceof Error ? err.message : 'Errore nella richiesta del reso');
     }
   };
 
@@ -123,8 +147,8 @@ const OrdiniVenditaCliente: React.FC = () => {
             <i className="bi bi-exclamation-triangle"></i> Reso già richiesto
           </span>
         ) : (
-          <Button 
-            variant="warning" 
+          <Button
+            variant="warning"
             className="me-2"
             onClick={() => handleReturn(orderId)}
           >
@@ -133,7 +157,7 @@ const OrdiniVenditaCliente: React.FC = () => {
         )}
 
         {!status?.hasInvoice ? (
-          <Button 
+          <Button
             variant="primary"
             onClick={() => handleGenerateInvoice(orderId)}
             disabled={status?.hasReturn}
@@ -141,7 +165,7 @@ const OrdiniVenditaCliente: React.FC = () => {
             Genera Fattura
           </Button>
         ) : (
-          <Button 
+          <Button
             variant="info"
             onClick={() => handleViewInvoice(orderId)}
           >
@@ -177,13 +201,23 @@ const OrdiniVenditaCliente: React.FC = () => {
 
   return (
     <Container>
+      {error && (
+        <Alert variant="danger" onClose={() => setError(null)} dismissible>
+          {error}
+        </Alert>
+      )}
+      {success && (
+        <Alert variant="success" onClose={() => setSuccess(null)} dismissible>
+          {success}
+        </Alert>
+      )}
       <h2 className="my-4">Dettaglio Ordini Cliente</h2>
       <Accordion>
         {Object.entries(groupedOrders).map(([codiceOrdine, ordine]) => (
           <Accordion.Item key={codiceOrdine} eventKey={codiceOrdine}>
             <Accordion.Header>
-              Ordine #{codiceOrdine} - {new Date(ordine.data).toLocaleDateString('it-IT')} 
-              - Totale: €{calcolaTotaleOrdine(ordine.prodotti).toFixed(2)}
+              Ordine #{codiceOrdine} - {new Date(ordine.data).toLocaleDateString('it-IT')}
+              - Totale (senza IVA): €{calcolaTotaleOrdine(ordine.prodotti).toFixed(2)}
             </Accordion.Header>
             <Accordion.Body>
               <Table striped bordered hover>
@@ -208,7 +242,7 @@ const OrdiniVenditaCliente: React.FC = () => {
               </Table>
 
               {renderActionButtons(Number(codiceOrdine))}
-        
+
             </Accordion.Body>
           </Accordion.Item>
         ))}
@@ -223,14 +257,14 @@ const OrdiniVenditaCliente: React.FC = () => {
               <h4>Dettagli Cliente</h4>
               <p>Nome: {selectedInvoice.NomeCliente} {selectedInvoice.CognomeCliente}</p>
               <p>Indirizzo: {selectedInvoice.Indirizzo}</p>
-              
-              <hr/>
-              
+
+              <hr />
+
               <h4>Dettagli Fattura</h4>
               <p>Data: {new Date(selectedInvoice.Data).toLocaleDateString('it-IT')}</p>
               <p>Imponibile: €{selectedInvoice.Importo.toFixed(2)}</p>
               <p>IVA ({selectedInvoice.Iva}%): €{(selectedInvoice.Importo * selectedInvoice.Iva / 100).toFixed(2)}</p>
-              <p className="h5">Totale: €{(selectedInvoice.Importo * (1 + selectedInvoice.Iva/100)).toFixed(2)}</p>
+              <p className="h5">Totale: €{(selectedInvoice.Importo * (1 + selectedInvoice.Iva / 100)).toFixed(2)}</p>
             </div>
           )}
         </Modal.Body>

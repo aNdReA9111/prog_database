@@ -241,8 +241,8 @@ async def generate_invoice(shop_id: int, order_id: int, conn=Depends(get_db_conn
         logger.info(f"Calcolato totale fattura: {totale}")
 
         cursor.execute("""
-            INSERT INTO Fattura (Importo, Iva, MetodoPagamento, DataEmissione, Vendita)
-            VALUES (?, 22, 'Carta', date('now'), ?)
+            INSERT INTO Fattura (Importo, Iva, DataEmissione, Vendita)
+            VALUES (?, 22, date('now'), ?)
         """, (totale, order_id))
         fattura_id = cursor.lastrowid
         logger.info(f"Creata fattura ID: {fattura_id}")
@@ -265,8 +265,24 @@ async def create_return(shop_id: int, order_id: int, return_data: dict, conn=Dep
     logger.info(f"Creazione reso per ordine {order_id}")
     try:
         cursor.execute("""
-            INSERT INTO Reso (Motivazione, Stato, Modalità)
-            VALUES (?, 'Approvato', 'Rimborso')
+            SELECT Fattura 
+            FROM Vendita 
+            WHERE Codice = ?
+        """, (order_id,))
+        fattura = cursor.fetchone()
+        
+        if not fattura or fattura[0] is None:
+            logger.warning(f"Tentativo di reso senza fattura per ordine {order_id}")
+            raise HTTPException(
+                status_code=400, 
+                detail={
+                    "message": "Impossibile creare un reso senza fattura",
+                    "code": "INVOICE_REQUIRED"
+                }
+            )
+        cursor.execute("""
+            INSERT INTO Reso (Motivazione)
+            VALUES (?)
         """, (return_data["motivazione"],))
         reso_id = cursor.lastrowid
         logger.info(f"Creato reso ID: {reso_id}")

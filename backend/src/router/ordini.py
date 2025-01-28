@@ -194,8 +194,8 @@ async def create_purchase_order(order: PurchaseOrder, conn=Depends(get_db_connec
         order_id = cursor.lastrowid
 
         cursor.execute("""
-            INSERT INTO Acquisto (Codice, DataDiConsegna, Stato, Fornitore)
-            VALUES (?, date('now', '+7 days'), 'In elaborazione', ?)
+            INSERT INTO Acquisto (Codice, DataDiConsegna, Fornitore)
+            VALUES (?, date('now', '+7 days'), ?)
         """, (order_id, order.supplier_id))
 
         for product in order.products:
