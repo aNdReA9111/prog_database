@@ -180,3 +180,38 @@ async def get_shop_products(shop_id: int, conn=Depends(get_db_connection)):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+        
+@router.get("/{shop_id}/employees/{employee_id}/orders")
+async def get_employee_orders(shop_id: int, employee_id: int, conn=Depends(get_db_connection)):
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT o.Codice, o.Data, p.Nome as Prodotto, p.Prezzo, cp.Quantità,
+                   c.Nome as Cliente, cl.Cognome as CognomeCliente,
+                   COALESCE(f.Importo, p.Prezzo * cp.Quantità) as Importo, 
+                   COALESCE(f.Iva, 22) as Iva
+            FROM Ordine o
+            JOIN Vendita v ON o.Codice = v.Codice
+            JOIN Composizione cp ON o.Codice = cp.Ordine
+            JOIN Prodotto p ON cp.Prodotto = p.Codice
+            JOIN Cliente cl ON v.Cliente = cl.Codice
+            JOIN Controparte c ON cl.Codice = c.Codice
+            LEFT JOIN Fattura f ON v.Fattura = f.NumeroFattura
+            WHERE o.Negozio = ? AND v.Responsabile = ?
+        """, (shop_id, employee_id))
+        
+        orders = cursor.fetchall()
+        return [{
+            "Codice": order[0],
+            "Data": order[1],
+            "Prodotto": order[2],
+            "Prezzo": float(order[3]),
+            "Quantita": order[4],
+            "Cliente": f"{order[5]} {order[6]}",
+            "Importo": float(order[7]),
+            "Iva": float(order[8])
+        } for order in orders]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()

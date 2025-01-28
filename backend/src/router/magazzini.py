@@ -35,7 +35,6 @@ async def get_magazzini(conn=Depends(get_db_connection)):
         magazzini = cursor.fetchall()
         
         result = [{"codice": m[0], "indirizzo": m[1]} for m in magazzini]
-        print(result)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Errore interno: {str(e)}")

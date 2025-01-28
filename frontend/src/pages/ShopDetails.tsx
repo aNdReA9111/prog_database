@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Table, Button, Form, Modal } from 'react-bootstrap';
 
 type Employee = {
@@ -26,6 +26,7 @@ type Client = {
 
 const ShopDetails: React.FC = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [shop, setShop] = useState<Shop | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -107,6 +108,14 @@ const ShopDetails: React.FC = () => {
                   onClick={() => handleDelete(employee.Numero)}
                 >
                   Licenzia
+                </Button>
+              </td>
+              <td>
+                <Button 
+                  variant="info"
+                  onClick={() => navigate(`/shop/${id}/employee/${employee.Numero}/orders`)}
+                >
+                  Mostra Vendite
                 </Button>
               </td>
             </tr>
