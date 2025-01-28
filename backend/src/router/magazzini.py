@@ -101,28 +101,44 @@ async def get_magazzino_detail(codice: int, conn=Depends(get_db_connection)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 @router.delete("/{codice}")
 async def delete_magazzino(codice: int, conn=Depends(get_db_connection)):
     cursor = conn.cursor()
     try:
-        # Verifica esistenza magazzino
-        cursor.execute("SELECT 1 FROM Magazzino WHERE Codice = ?", (codice,))
-        if not cursor.fetchone():
-            raise HTTPException(status_code=404, detail="Magazzino non trovato")
-
-        # Elimina prima le relazioni in Stoccaggio
-        cursor.execute("DELETE FROM Stoccaggio WHERE Magazzino = ?", (codice,))
+        # Verifica esistenza prodotti nel magazzino
+        cursor.execute("""
+            SELECT COUNT(*) 
+            FROM Stoccaggio 
+            WHERE Magazzino = ? AND Quantita > 0
+        """, (codice,))
+        count = cursor.fetchone()[0]
         
-        # Elimina il magazzino
+        if count > 0:
+            logger.warning(f"Tentativo di eliminare magazzino {codice} con {count} prodotti")
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": "Impossibile eliminare il magazzino: contiene ancora prodotti",
+                    "count": count
+                }
+            )
+
+        # Elimina relazioni
+        cursor.execute("DELETE FROM Rifornimento WHERE Magazzino = ?", (codice,))
         cursor.execute("DELETE FROM Magazzino WHERE Codice = ?", (codice,))
         
         conn.commit()
+        logger.info(f"Magazzino {codice} eliminato con successo")
         return {"message": "Magazzino eliminato con successo"}
     except Exception as e:
         conn.rollback()
+        logger.error(f"Errore eliminazione magazzino: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        conn.close()
 
 @router.put("/update-quantity")
 async def update_quantity(data: QuantitaUpdate, conn=Depends(get_db_connection)):

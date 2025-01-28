@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
-import { Card, Button, Row, Col, Modal, Form } from "react-bootstrap";
+import { Card, Button, Row, Col, Modal, Form, Alert } from "react-bootstrap";
 
 interface Shop {
     id: number;
     nome: string;
+}
+
+interface ErrorDetail {
+    message: string;
+    count?: number;
 }
 
 const Magazzini = () => {
@@ -14,6 +19,37 @@ const Magazzini = () => {
         indirizzo: '',
         negozi: [] as number[]
     });
+    const [error, setError] = useState<string | null>(null);
+
+    const deleteMagazzino = async (codice: number) => {
+        if (window.confirm('Sei sicuro di voler eliminare questo magazzino?')) {
+            try {
+                const response = await fetch(`http://15.204.245.166:8002/api/magazzini/${codice}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    setMagazzini(prev => prev.filter(m => m.codice !== codice));
+                } else if (response.status === 400) {
+                    // Mostra messaggio personalizzato con conteggio prodotti
+                    const errorDetail: ErrorDetail = data.detail;
+                    setError(
+                        `${errorDetail.message} (${errorDetail.count} ${errorDetail.count === 1 ? 'prodotto' : 'prodotti'} presenti)`
+                    );
+                } else {
+                    throw new Error(typeof data.detail === 'string' ? data.detail : 'Errore sconosciuto');
+                }
+            } catch (error) {
+                console.error('Errore durante l\'eliminazione:', error);
+                setError(error instanceof Error ? error.message : 'Errore durante l\'eliminazione del magazzino');
+            }
+        }
+    };
 
     useEffect(() => {
         fetch("http://15.204.245.166:8002/api/magazzini/", {
@@ -22,9 +58,9 @@ const Magazzini = () => {
                 'Content-Type': 'application/json',
             }
         })
-        .then(response => response.json())
-        .then(data => setMagazzini(data))
-        .catch(error => console.error(error));
+            .then(response => response.json())
+            .then(data => setMagazzini(data))
+            .catch(error => console.error(error));
 
         // Carica lista negozi
         fetch("http://15.204.245.166:8002/api/magazzini/shops")
@@ -50,57 +86,48 @@ const Magazzini = () => {
         }
     };
 
-const deleteMagazzino = async (codice: number) => {
-  if (window.confirm('Sei sicuro di voler eliminare questo magazzino?')) {
-      try {
-          const response = await fetch(`http://15.204.245.166:8002/api/magazzini/${codice}`, {
-              method: 'DELETE',
-              headers: {
-                  'Content-Type': 'application/json',
-              }
-          });
-          
-          if (response.ok) {
-              setMagazzini(prev => prev.filter(m => m.codice !== codice));
-          }
-      } catch (error) {
-          console.error('Errore durante l\'eliminazione:', error);
-      }
-  }
-};
+    return (
+        <div>
+            {error && (
+                <Alert 
+                    variant="danger" 
+                    onClose={() => setError(null)} 
+                    dismissible
+                    className="mt-3 mb-3"
+                >
+                    {error}
+                </Alert>
+            )}
+            <h1>Magazzini</h1>
+            <Button onClick={() => setShowModal(true)}>Aggiungi Magazzino</Button>
 
-  return (
-    <div>
-      <h1>Magazzini</h1>
-        <Button onClick={() => setShowModal(true)}>Aggiungi Magazzino</Button>
+            <Row className="mt-4">
+                {magazzini.map((magazzino) => (
+                    <Col key={magazzino.codice} sm={12} md={6} lg={4}>
+                        <Card className="mb-4" style={{ height: '200px' }}>
+                            <Card.Body className="d-flex flex-column justify-content-between">
+                                <Card.Title>{magazzino.indirizzo}</Card.Title>
+                                <div className="d-flex justify-content-between">
+                                    <Button
+                                        variant="primary"
+                                        href={`http://15.204.245.166:5173/magazzino/${magazzino.codice}`}
+                                    >
+                                        Dettagli
+                                    </Button>
+                                    <Button
+                                        variant="danger"
+                                        onClick={() => deleteMagazzino(magazzino.codice)}
+                                    >
+                                        Elimina
+                                    </Button>
+                                </div>
+                            </Card.Body>
+                        </Card>
+                    </Col>
+                ))}
+            </Row>
 
-      <Row className="mt-4">
-          {magazzini.map((magazzino) => (
-              <Col key={magazzino.codice} sm={12} md={6} lg={4}>
-                  <Card className="mb-4" style={{ height: '200px' }}>
-                      <Card.Body className="d-flex flex-column justify-content-between">
-                          <Card.Title>{magazzino.indirizzo}</Card.Title>
-                          <div className="d-flex justify-content-between">
-                              <Button
-                                  variant="primary"
-                                  href={`http://15.204.245.166:5173/magazzino/${magazzino.codice}`}
-                              >
-                                  Dettagli
-                              </Button>
-                              <Button
-                                  variant="danger"
-                                  onClick={() => deleteMagazzino(magazzino.codice)}
-                              >
-                                  Elimina
-                              </Button>
-                          </div>
-                      </Card.Body>
-                  </Card>
-              </Col>
-          ))}
-      </Row>
-
-      <Modal show={showModal} onHide={() => setShowModal(false)}>
+            <Modal show={showModal} onHide={() => setShowModal(false)}>
                 <Modal.Header closeButton>
                     <Modal.Title>Nuovo Magazzino</Modal.Title>
                 </Modal.Header>
@@ -144,8 +171,8 @@ const deleteMagazzino = async (codice: number) => {
                     </Button>
                 </Modal.Footer>
             </Modal>
-  </div>
-  );
+        </div>
+    );
 };
 
 export default Magazzini;
